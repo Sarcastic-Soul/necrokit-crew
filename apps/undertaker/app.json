@@ -1,0 +1,17 @@
+{
+  "name": "undertaker",
+  "version": "0.1.0",
+  "displayName": "Undertaker",
+  "description": "Persistent maintenance workspace for NecroKit scans. Runs fixture-backed Package Graveyard and Repo Reaper scans on a schedule, stores history locally, and turns findings into approvable revival plans.",
+  "author": "NecroKit",
+  "iconPath": "assets/icon.svg",
+  "agents": [],
+  "skills": [],
+  "permissions": {
+    "api": [],
+    "events": [],
+    "storage": true,
+    "cron": false,
+    "network": false
+  }
+}
