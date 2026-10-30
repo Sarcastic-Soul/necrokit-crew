@@ -1,0 +1,12 @@
+{
+  "name": "crew-validation",
+  "description": "Run Crew App checks after application changes.",
+  "trigger": {
+    "type": "fileSaved",
+    "patterns": ["apps/undertaker/**/*.ts", "apps/undertaker/**/*.tsx"]
+  },
+  "action": {
+    "type": "runCommand",
+    "command": "pnpm --filter @necrokit/undertaker typecheck && pnpm --filter @necrokit/undertaker test"
+  }
+}
