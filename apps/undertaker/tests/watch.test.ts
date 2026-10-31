@@ -1,40 +1,39 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { Report } from "../vendor/necrokit.mjs";
 import { openStore } from "../src/store.ts";
-import { runWatch, runWatches } from "../src/watch.ts";
-import type { ScanResult, Watch } from "../src/watch.ts";
+import type { Store } from "../src/store.ts";
+import type { ScanFn } from "../src/scanner.ts";
+import { runDueWatches, runWatch, runWatches } from "../src/watch.ts";
+import { abandonedReport, healthyReport, NOW, scan as scanEntry, tempDir, watch } from "./helpers.ts";
 
-const NOW = "2026-10-31T12:00:00.000Z";
-const OK: ScanResult = { score: 90, band: "alive", findingCount: 0, report: "# ok" };
-
-let dir: string;
+let store: Store;
+let cleanup: () => Promise<void>;
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "undertaker-watch-"));
+  const tmp = await tempDir("watch");
+  store = openStore(join(tmp.dir, "store.json"));
+  cleanup = tmp.cleanup;
 });
 
-afterEach(async () => {
-  await rm(dir, { recursive: true, force: true });
-});
+afterEach(() => cleanup());
 
-const watch = (subject: string, everyHours = 24): Watch => ({ kind: "package", subject, everyHours });
+const fixed = (report: Report): ScanFn => async () => report;
 
 describe("runWatches", () => {
   it("keeps running other watches when one scan throws", async () => {
-    const store = openStore(join(dir, "store.json"));
-    const scan = async (w: Watch): Promise<ScanResult> => {
-      if (w.subject === "bad") throw new Error("registry timeout");
-      return OK;
+    const scan: ScanFn = async (target) => {
+      if (target.subject === "bad") throw new Error("registry timeout");
+      return abandonedReport();
     };
+    const watches = [watch({ id: "a", subject: "bad" }), watch({ id: "b" }), watch({ id: "c" })];
 
-    const entries = await runWatches([watch("bad"), watch("good-a"), watch("good-b")], { scan, store, now: () => NOW });
+    const entries = await runWatches(watches, { scan, store, now: () => NOW });
 
     expect(entries).toMatchObject([
-      { subject: "bad", score: null, error: "registry timeout" },
-      { subject: "good-a", score: 90, band: "alive" },
-      { subject: "good-b", score: 90, band: "alive" },
+      { watchId: "a", score: null, band: null, error: "registry timeout" },
+      { watchId: "b", band: "critical" },
+      { watchId: "c", band: "critical" },
     ]);
     expect(entries[1]?.error).toBeUndefined();
     expect(await store.listScans()).toHaveLength(3);
@@ -43,40 +42,64 @@ describe("runWatches", () => {
 });
 
 describe("runWatch", () => {
+  it("records NecroKit's score, band, and findings", async () => {
+    const entry = await runWatch(watch(), { scan: fixed(abandonedReport()), store, now: () => NOW });
+    expect(entry).toMatchObject({ score: 2, band: "critical", findingCount: 5 });
+    expect(entry?.report?.findings.map((f) => f.severity)).toContain("critical");
+  });
+
+  it("builds the plan from the report's ordered steps, most severe first", async () => {
+    await runWatch(watch(), { scan: fixed(abandonedReport()), store, now: () => NOW });
+    const [plan] = await store.listPlans();
+    expect(plan?.steps.map((s) => s.severity)).toEqual(["critical", "critical", "warning", "info", "info"]);
+    expect(plan?.markdown).toContain("## Revival plan");
+    expect(plan?.decision).toBeNull();
+  });
+
+  it("creates no plan when the report has nothing to fix", async () => {
+    await runWatch(watch(), { scan: fixed(healthyReport()), store, now: () => NOW });
+    expect(await store.listPlans()).toEqual([]);
+  });
+
+  it("does not repeat a plan for the same findings, even after it was dismissed", async () => {
+    const deps = { scan: fixed(abandonedReport()), store, now: () => NOW };
+    await runWatch(watch(), deps, { force: true });
+    const [first] = await store.listPlans();
+    await store.decidePlan(first?.id ?? "", "dismiss", NOW);
+    await runWatch(watch(), deps, { force: true });
+    expect(await store.listPlans()).toHaveLength(1);
+  });
+
   it("skips the scan when the watch ran less than everyHours ago", async () => {
-    const store = openStore(join(dir, "store.json"));
-    await store.recordScan({
-      id: "prev",
-      kind: "package",
-      subject: "x",
-      scannedAt: "2026-10-31T11:00:00.000Z",
-      score: 90,
-      band: "alive",
-      findingCount: 0,
-    });
+    await store.recordScan(scanEntry({ scannedAt: "2026-10-31T11:00:00.000Z" }));
     let calls = 0;
-    const scan = async (): Promise<ScanResult> => {
+    const scan: ScanFn = async () => {
       calls += 1;
-      return OK;
+      return healthyReport();
     };
 
-    expect(await runWatch(watch("x"), { scan, store, now: () => NOW })).toBeNull();
+    expect(await runWatch(watch(), { scan, store, now: () => NOW })).toBeNull();
     expect(calls).toBe(0);
   });
 
-  it("runs again at exactly everyHours after the last scan", async () => {
-    const store = openStore(join(dir, "store.json"));
-    await store.recordScan({
-      id: "prev",
-      kind: "package",
-      subject: "x",
-      scannedAt: "2026-10-30T12:00:00.000Z",
-      score: 90,
-      band: "alive",
-      findingCount: 0,
-    });
+  it("runs a watch that is not due when forced", async () => {
+    await store.recordScan(scanEntry({ scannedAt: "2026-10-31T11:00:00.000Z" }));
+    const entry = await runWatch(watch(), { scan: fixed(healthyReport()), store, now: () => NOW }, { force: true });
+    expect(entry).toMatchObject({ band: "healthy", scannedAt: NOW });
+  });
 
-    const entry = await runWatch(watch("x"), { scan: async () => OK, store, now: () => NOW });
-    expect(entry).toMatchObject({ subject: "x", score: 90, scannedAt: NOW });
+  it("runs again at exactly everyHours after the last scan", async () => {
+    await store.recordScan(scanEntry({ scannedAt: "2026-10-30T12:00:00.000Z" }));
+    const entry = await runWatch(watch(), { scan: fixed(healthyReport()), store, now: () => NOW });
+    expect(entry).toMatchObject({ score: 100, scannedAt: NOW });
+  });
+});
+
+describe("runDueWatches", () => {
+  it("scans the stored watches that are due", async () => {
+    await store.seedWatches([watch({ id: "a" }), watch({ id: "b" })]);
+    await store.recordScan(scanEntry({ watchId: "b", scannedAt: "2026-10-31T11:00:00.000Z" }));
+    const ran = await runDueWatches({ scan: fixed(healthyReport()), store, now: () => NOW });
+    expect(ran.map((e) => e.watchId)).toEqual(["a"]);
   });
 });

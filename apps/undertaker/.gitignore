@@ -1,1 +1,6 @@
+node_modules/
+ui/node_modules/
+.local-data/
 .undertaker/
+data/
+*.json.lock/

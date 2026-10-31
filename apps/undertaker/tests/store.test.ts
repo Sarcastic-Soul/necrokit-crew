@@ -1,36 +1,23 @@
-import { mkdtemp, readdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openStore } from "../src/store.ts";
-import type { ScanEntry } from "../src/store.ts";
+import { scan, tempDir, watch } from "./helpers.ts";
 
 let dir: string;
+let cleanup: () => Promise<void>;
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "undertaker-store-"));
+  ({ dir, cleanup } = await tempDir("store"));
 });
 
-afterEach(async () => {
-  await rm(dir, { recursive: true, force: true });
-});
-
-const scan = (overrides: Partial<ScanEntry> = {}): ScanEntry => ({
-  id: "s1",
-  kind: "package",
-  subject: "example-pkg-old",
-  scannedAt: "2026-10-31T00:00:00.000Z",
-  score: 60,
-  band: "wounded",
-  findingCount: 2,
-  ...overrides,
-});
+afterEach(() => cleanup());
 
 describe("store", () => {
   it("round-trips scans through the file across instances", async () => {
     const path = join(dir, "store.json");
     const first = scan({ id: "a" });
-    const second = scan({ id: "b", kind: "repository", subject: "example-repo-stale", score: null, band: null, findingCount: null, error: "timeout" });
+    const second = scan({ id: "b", kind: "repository", subject: "neglected", score: null, band: null, findingCount: null, error: "timeout" });
 
     await openStore(path).recordScan(first);
     await openStore(path).recordScan(second);
@@ -38,25 +25,38 @@ describe("store", () => {
     expect(await openStore(path).listScans()).toEqual([first, second]);
   });
 
-  it("returns the newest scan per kind", async () => {
-    const store = openStore(join(dir, "store.json"));
-    await store.recordScan(scan({ id: "old", scannedAt: "2026-10-01T00:00:00.000Z" }));
-    await store.recordScan(scan({ id: "new", scannedAt: "2026-10-30T00:00:00.000Z" }));
-    await store.recordScan(scan({ id: "repo", kind: "repository", scannedAt: "2026-10-31T00:00:00.000Z" }));
+  it("keeps only the newest scans per watch", async () => {
+    const store = openStore(join(dir, "store.json"), { maxScansPerWatch: 2 });
+    for (const id of ["1", "2", "3"]) await store.recordScan(scan({ id, scannedAt: `2026-10-0${id}T00:00:00.000Z` }));
+    await store.recordScan(scan({ id: "other", watchId: "w2" }));
 
-    expect((await store.latestByKind("package"))?.id).toBe("new");
-    expect((await store.latestByKind("repository"))?.id).toBe("repo");
+    expect((await store.listScans()).map((s) => s.id)).toEqual(["2", "3", "other"]);
   });
 
   it("treats a missing file as an empty store", async () => {
     const store = openStore(join(dir, "missing", "store.json"));
     expect(await store.listScans()).toEqual([]);
-    expect(await store.latestByKind("package")).toBeNull();
+    expect(await store.listWatches()).toEqual([]);
   });
 
-  it("leaves no temp files behind after a write", async () => {
+  it("seeds watches once and never re-seeds an emptied list", async () => {
+    const store = openStore(join(dir, "store.json"));
+    expect(await store.seedWatches([watch()])).toBe(true);
+    expect(await store.removeWatch("w1")).toBe(true);
+    expect(await store.seedWatches([watch()])).toBe(false);
+    expect(await store.listWatches()).toEqual([]);
+  });
+
+  it("leaves no temp or lock files behind after a write", async () => {
     const store = openStore(join(dir, "store.json"));
     await store.recordScan(scan());
     expect(await readdir(dir)).toEqual(["store.json"]);
+  });
+
+  it("waits for another process's lock and fails clearly when it never clears", async () => {
+    const path = join(dir, "store.json");
+    await mkdir(`${path}.lock`);
+    const store = openStore(path, { lockTimeoutMs: 100 });
+    await expect(store.recordScan(scan())).rejects.toThrow("Store is locked");
   });
 });

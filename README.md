@@ -1,33 +1,197 @@
-# NecroKit Crew
+# NecroKit Crew: Undertaker
 
-**Undertaker** is the separate Kiro Crew App for the NecroKit Skeleton Crew submission.
+Undertaker is a Kiro Crew App that keeps watch over npm packages and GitHub
+repositories. It runs [NecroKit](https://github.com/Sarcastic-Soul/necrokit)
+scans on a schedule, keeps the score history, and turns new findings into
+revival plans that wait for a person to approve or dismiss them. It never
+changes code.
 
-It turns the NecroKit scan-and-plan workflow into a persistent maintenance workspace:
+This repo is the Kiroween 2026 "Best Kiro Crew App" entry. It is separate from
+the main NecroKit repo because the rules ask for a separate repository.
 
-- schedule Package Graveyard and Repo Reaper scans
-- run fixture-backed scans without secrets
-- store scan history
-- group findings by severity
-- compare health over time
-- generate and approve revival plans
+## Features
 
-This repository is intentionally separate from the main `necrokit` repository because the Kiroween Best Kiro Crew App rules require a separate GitHub repository submission.
+- **Watches.** A package or a repository, in fixture mode (recorded data, no
+  network) or live mode (public npm and GitHub APIs), each with its own interval.
+  Five fixture watches are added on first start, so the app works offline.
+- **Scheduled scans.** An hourly Kiro Crew command cron runs only the watches
+  that are due. No model call, no API key.
+- **History and trend.** The last 30 scans per watch are kept; the page draws a
+  small score trend per watch.
+- **Evidence on every finding.** Each finding shows its rule, explanation, and
+  the evidence label, value and source. Sources that could not be read are
+  listed as unavailable with the reason.
+- **No invented scores.** When NecroKit collects no evidence at all (for
+  example an npm 404), the report has `score: null` and band `unknown`.
+  Undertaker shows that as "unscored" and makes no plan from it.
+- **Revival plans that wait for you.** New findings become a ranked plan
+  (critical first, then by weight). Approve or dismiss. The same findings do
+  not make a new plan again.
+- **Markdown export** of approved plans, ready for an issue or a pull request.
+- **Agent and skill.** An `undertaker` agent with the `necrokit-triage` skill
+  explains reports in plain language, and a weekly digest cron (paused by
+  default) summarizes what got worse.
 
-## Planned stack
-
-- Kiro Crew App SDK
-- TypeScript and Node.js 22+
-- React for the dashboard surface
-- SQLite for local history
-- `@necrokit/core` behavior mirrored through a small adapter boundary
-- Vitest for tests
-
-The app must remain useful without a live LLM or paid API. The default demo uses recorded scan fixtures.
-
-## Planned workflow
+## Architecture
 
 ```text
-schedule -> scan -> persist -> summarize -> approve plan -> export
+                 Kiro Crew gateway
+   +---------------------------------------------------+
+   |  dashboard page        reverse proxy     scheduler |
+   |  ui/dist/index.mjs  /apps/undertaker/api  crons    |
+   +--------|------------------|----------------|-------+
+            | useAppApi        | signed v2      | hourly command cron
+            v                  v                v
+      React page  ------>  backend/server.mjs   backend/run-due.mjs
+                            (node:http)          (no model call)
+                                   \              /
+                                    v            v
+                         <KIROCREW_HOME>/apps/undertaker/data/store.json
+                                   ^
+                                   | read only (weekly digest, paused)
+                             agent "undertaker" + skill necrokit-triage
+
+   scanning: src/scanner.ts -> vendor/necrokit.mjs (built from the NecroKit repo)
 ```
 
-See [`docs/CREW_APP_PLAN.md`](docs/CREW_APP_PLAN.md) for scope and acceptance criteria.
+Details are in [.kiro/specs/undertaker/design.md](.kiro/specs/undertaker/design.md).
+
+## Repository layout
+
+```text
+apps/undertaker/          the Crew App (this folder is what gets installed)
+  app.json                manifest
+  agents/undertaker.json  agent
+  skills/necrokit-triage/ skill
+  assets/icon.png         store icon (512 px, opaque)
+  backend/*.mjs           bundled backend and cron entry (built, committed)
+  ui/dist/index.mjs       bundled page (built, committed)
+  ui/src/App.tsx          page source
+  src/                    backend source
+  tests/                  Vitest tests
+  vendor/necrokit.mjs     NecroKit build, see vendor/PROVENANCE.md
+.kiro/                    Kiro steering, hook and the spec this was built from
+docs/CREW_APP_PLAN.md     original plan
+```
+
+## Install into Kiro Crew
+
+Requires Node 22 on the gateway host. The built files are committed, so no
+build step is needed to install.
+
+```bash
+git clone https://github.com/Sarcastic-Soul/necrokit-crew.git
+kirocrew app install /absolute/path/to/necrokit-crew/apps/undertaker
+```
+
+Then trust the app in **Settings → Security → Third-party apps** (enable
+refuses untrusted third-party apps), and enable it:
+
+```bash
+kirocrew app enable undertaker
+```
+
+Open **Undertaker** in the sidebar. The five fixture watches are due on the
+first visit; press **Run due watches**.
+
+## Local development
+
+```bash
+pnpm install
+pnpm dev          # builds and starts the backend on http://127.0.0.1:8787, data in apps/undertaker/.local-data
+pnpm test         # Vitest
+pnpm typecheck    # backend, tests and UI
+pnpm build        # backend/*.mjs and ui/dist/index.mjs
+```
+
+Try the API while `pnpm dev` runs (no signature is needed when
+`KIROCREW_PROXY_SECRET` is not set):
+
+```bash
+curl http://127.0.0.1:8787/health
+curl -X POST http://127.0.0.1:8787/api/run
+curl http://127.0.0.1:8787/api/watches
+curl http://127.0.0.1:8787/api/plans/export
+```
+
+Text dashboard over the same store that `pnpm dev` uses:
+
+```bash
+pnpm --filter @necrokit/undertaker cli
+pnpm --filter @necrokit/undertaker cli --min-severity warning
+pnpm --filter @necrokit/undertaker cli --decide <planId>=approve --export
+```
+
+## How it relates to NecroKit
+
+NecroKit is the main project: an evidence-first scanner with two apps,
+Package Graveyard (npm packages) and Repo Reaper (GitHub repositories), built on
+a shared core (evidence, rules, scoring, revival plan). It answers "is this
+being looked after?" once.
+
+Undertaker reuses that core without copying the rules. `vendor/necrokit.mjs` is
+the bundle that `pnpm build` produces in the NecroKit repo, and
+`src/scanner.ts` is the only file that calls it. Undertaker adds what a
+one-off scan cannot: a schedule, history, a decision step, and an export.
+
+## Crew App write-up
+
+**What it is.** Undertaker is a maintenance watch for the open-source code you
+depend on. You list packages and repositories; Kiro Crew's scheduler scans them
+with NecroKit every hour that they are due; the page shows each subject's score,
+its trend, and the evidence behind every finding. When a scan finds something
+new, Undertaker writes a revival plan and waits. You approve it or dismiss it.
+Approved plans export as one Markdown file.
+
+**Why it is a Crew App and not a web page.** A dependency rarely dies in one
+day. It gets a failing CI, then a stale release, then an archived repo. A
+one-off scan misses that slope. Undertaker needs things only a long-running
+host gives it: a scheduler that runs while the browser is closed, a data
+folder that survives updates, a backend behind the gateway's signed proxy, and
+an agent that can read the history and write a weekly digest.
+
+**What Kiro Crew features it uses.**
+
+- `crons` with a `command` job (no model call) for the hourly scan, and a
+  paused `message` job for the agent's weekly digest
+- a `node` backend behind the gateway reverse proxy, with `/health` and proxy
+  signature v2 checks
+- a `ui` page built against `@kirocrew/app-sdk` and `@kirocrew/app-sdk/ui`
+  (`useAppApi`, `useNavBadge`, `useNotify`, `PageHeader`, `StatCard`,
+  `SegmentedControl`, `EmptyState`)
+- an agent and a skill shipped in the app
+- `permissions` limited to its own API routes, storage, cron and network
+
+**How Kiro was used to build it.** The `.kiro` folder holds the steering rules
+(always included), an EARS requirements spec, a design, and a task list that
+maps each task to requirement numbers. A file-edit hook asks Kiro to run
+typecheck and tests after any change to the app and fix failures without
+weakening tests.
+
+**Safety.** Undertaker never edits code, never opens issues or pull requests,
+and never approves its own plans. Live scans use public APIs with no token.
+When evidence is missing it says so instead of guessing.
+
+**Try it.** Install as above. The default watches use recorded fixtures, so it
+works with no network, no key and no model.
+
+## Assumptions and what is not verified
+
+These were built from the Kiro Crew docs but not yet run in a real gateway:
+
+- The hourly cron runs
+  `node "${KIROCREW_HOME:-$HOME/.kiro/crew}/apps/undertaker/backend/run-due.mjs"`.
+  This assumes the `command` runs in a POSIX shell and that the installed copy
+  lives at `<KIROCREW_HOME>/apps/undertaker`. The docs say `KIROCREW_HOME`
+  defaults to `~/.kiro/crew` but do not say which shell a command cron uses.
+- The weekly digest agent is told to read `data/store.json` directly. It is
+  paused by default because agent file access was not tested.
+- `@kirocrew/app-sdk` is provided by the dashboard at runtime and is not on
+  npm, so `ui/package.json` does not list it; `ui/src/kirocrew-sdk.d.ts` types
+  only the parts this app uses, copied from the Kiro Crew source.
+- The sidebar uses `ui.pages[].iconUrl` (`ui/icon.svg`), since the docs say
+  installed apps do not get a named `icon`.
+
+## License
+
+MIT

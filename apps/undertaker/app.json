@@ -1,17 +1,72 @@
 {
   "name": "undertaker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "displayName": "Undertaker",
-  "description": "Persistent maintenance workspace for NecroKit scans. Runs fixture-backed Package Graveyard and Repo Reaper scans on a schedule, stores history locally, and turns findings into approvable revival plans.",
-  "author": "NecroKit",
-  "iconPath": "assets/icon.svg",
-  "agents": [],
-  "skills": [],
+  "description": "Keeps watch over npm packages and GitHub repositories with NecroKit scans on a schedule, keeps the score history, and turns new findings into revival plans that a person approves or dismisses. It never changes code.",
+  "author": "Anish Kumar",
+  "license": "MIT",
+  "iconPath": "assets/icon.png",
+  "tags": ["maintenance", "dependencies", "open-source", "npm", "github", "triage"],
+  "highlights": [
+    "Scheduled NecroKit scans of npm packages and GitHub repositories, with score history and a trend line per watch",
+    "Every finding links to the evidence behind it; missing data is listed as unavailable, never guessed",
+    "A package with no evidence at all is shown as unscored instead of getting an invented number",
+    "New findings become a ranked revival plan; nothing happens until a person approves or dismisses it",
+    "Approved plans export as one Markdown file ready for an issue or a pull request description",
+    "Starts with five recorded fixtures, so it works offline; live npm and GitHub scans are opt-in per watch"
+  ],
+  "useCases": [
+    "Keep an eye on a handful of dependencies or repositories you rely on and get told when one starts to look abandoned.",
+    "Collect a reviewed list of maintenance tasks before a cleanup sprint."
+  ],
+  "configuration": [
+    "No setup needed for the fixture watches. Add live watches from the Undertaker page; they use the public npm and GitHub APIs without a token, so GitHub rate limits apply.",
+    "The hourly run-due-watches job only scans watches whose interval has passed. The weekly agent digest ships paused; resume it on the Schedule page if you want it."
+  ],
+  "agents": ["agents/undertaker.json"],
+  "skills": ["skills/necrokit-triage"],
+  "crons": [
+    {
+      "name": "run-due-watches",
+      "every": 3600,
+      "command": "node \"${KIROCREW_HOME:-$HOME/.kiro/crew}/apps/undertaker/backend/run-due.mjs\"",
+      "timeout": 120,
+      "timeout_secs": 130,
+      "silent": true
+    },
+    {
+      "name": "weekly-digest",
+      "cron_expr": "0 9 * * 1",
+      "agent": "undertaker",
+      "message": "Write the Undertaker weekly digest. Read the store file at ${KIROCREW_HOME:-~/.kiro/crew}/apps/undertaker/data/store.json without changing it. List watches whose band got worse since the previous scan, every watch that is critical now, watches that are unscored because no evidence was collected, and the number of plans still waiting for a decision. Quote scores and findings as stored. Do not approve or dismiss plans and do not change any code.",
+      "enabled": false
+    }
+  ],
+  "ui": {
+    "entry": "dist/index.mjs",
+    "pages": [
+      {
+        "route": "/apps/undertaker",
+        "label": "Undertaker",
+        "iconUrl": "icon.svg"
+      }
+    ]
+  },
+  "backend": {
+    "entryPoint": "backend/server.mjs",
+    "type": "node",
+    "port": "auto",
+    "healthCheck": "/health",
+    "routes": "/api/apps/undertaker"
+  },
   "permissions": {
-    "api": [],
+    "api": ["/apps/undertaker/api", "/apps/undertaker/api/*"],
     "events": [],
     "storage": true,
-    "cron": false,
-    "network": false
+    "cron": true,
+    "network": true
+  },
+  "platform": {
+    "os": ["macos", "linux"]
   }
 }

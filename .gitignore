@@ -1,8 +1,18 @@
 node_modules/
-dist/
 coverage/
 .env
 .env.*
 !.env.example
 *.log
 .DS_Store
+
+# Build output in general, but the Crew App must ship its built UI bundle
+# (ui/dist/index.mjs) and backend (backend/*.mjs).
+dist/
+!apps/undertaker/ui/dist/
+
+# Local Undertaker data: never commit scan history or store locks.
+.local-data/
+.undertaker/
+apps/undertaker/data/
+*.json.lock/

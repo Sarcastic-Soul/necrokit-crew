@@ -1,17 +1,20 @@
 {
   "name": "@necrokit/undertaker",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit",
-    "dev": "node --experimental-strip-types src/cli.ts",
+    "build": "esbuild src/server.ts src/run-due.ts --bundle --platform=node --format=esm --target=node22 --outdir=backend --out-extension:.js=.mjs --log-level=warning",
+    "dev": "pnpm build && UNDERTAKER_DATA_DIR=.local-data node backend/server.mjs",
+    "run-due": "pnpm build && UNDERTAKER_DATA_DIR=.local-data node backend/run-due.mjs",
+    "cli": "node --experimental-strip-types --no-warnings src/cli.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "22.15.21",
+    "esbuild": "0.25.5",
     "typescript": "5.8.3",
     "vitest": "3.1.3"
   }

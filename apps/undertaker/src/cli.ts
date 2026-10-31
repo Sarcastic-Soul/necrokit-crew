@@ -1,44 +1,34 @@
+// Text dashboard over the same store the backend uses. Handy for local checks:
+//   pnpm --filter @necrokit/undertaker cli [--store path] [--min-severity warning] [--decide <planId>=approve] [--export]
 import { resolve } from "node:path";
-import { createFixtureScanner, DEMO_WATCHES } from "./fixtures.ts";
-import type { Severity } from "./filter.ts";
-import { approvePlan, exportApprovedPlans } from "./plan-approval.ts";
+import { defaultWatches, storePath } from "./config.ts";
+import { filterBySeverity, isSeverity } from "./filter.ts";
+import { approvePlan, exportApprovedPlans, isDecision } from "./plan-approval.ts";
 import { isDue } from "./schedule.ts";
+import { createScanner } from "./scanner.ts";
 import { openStore } from "./store.ts";
-import type { PlanDecision, ScanEntry, Store } from "./store.ts";
-import { lastScanFor, runWatches } from "./watch.ts";
-import type { Watch } from "./watch.ts";
-
-const SEVERITIES: readonly Severity[] = ["low", "medium", "high", "critical"];
-const BANDS = ["alive", "wounded", "zombie", "error"];
+import type { Store } from "./store.ts";
+import type { Severity } from "./filter.ts";
+import { lastScanFor, runDueWatches } from "./watch.ts";
 
 function flag(args: readonly string[], name: string): string | undefined {
   const index = args.indexOf(name);
   return index === -1 ? undefined : args[index + 1];
 }
 
-function formatScan(scan: ScanEntry): string {
-  const error = scan.error ? `  error: ${scan.error}` : "";
-  return `    ${scan.kind} ${scan.subject}  score ${scan.score ?? "-"}  findings ${scan.findingCount ?? "-"}${error}`;
-}
-
-async function printDashboard(store: Store, watches: readonly Watch[], now: string): Promise<void> {
-  const scans = await store.listScans();
-  const plans = await store.listPlans();
-  const latest = watches.map((watch) => ({ watch, last: lastScanFor(scans, watch) }));
+async function printDashboard(store: Store, minSeverity: Severity, now: string): Promise<void> {
+  const [watches, scans, plans] = await Promise.all([store.listWatches(), store.listScans(), store.listPlans()]);
 
   console.log("Undertaker dashboard\n\nWatches");
-  for (const { watch, last } of latest) {
+  for (const watch of watches) {
+    const last = lastScanFor(scans, watch.id);
     const state = isDue(last?.scannedAt ?? null, watch.everyHours, now) ? "due" : "scheduled";
-    console.log(
-      `  ${watch.kind.padEnd(10)} ${watch.subject.padEnd(20)} every ${watch.everyHours}h  last ${last?.scannedAt ?? "never"}  ${state}`,
-    );
-  }
-
-  console.log("\nLatest scans by band");
-  for (const band of BANDS) {
-    const rows = latest.flatMap(({ last }) => (last && (last.band ?? "error") === band ? [last] : []));
-    console.log(`  ${band} (${rows.length})`);
-    for (const row of rows) console.log(formatScan(row));
+    const score = last ? `${last.score ?? "-"} ${last.band ?? "error"}` : "not scanned";
+    console.log(`  ${watch.kind.padEnd(10)} ${watch.mode.padEnd(7)} ${watch.subject.padEnd(16)} every ${watch.everyHours}h  ${state.padEnd(9)} ${score}`);
+    for (const finding of filterBySeverity(last?.report?.findings ?? [], minSeverity)) {
+      console.log(`      [${finding.severity}] ${finding.title}`);
+    }
+    if (last?.error) console.log(`      error: ${last.error}`);
   }
 
   console.log("\nPlans");
@@ -48,25 +38,26 @@ async function printDashboard(store: Store, watches: readonly Watch[], now: stri
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const storePath = resolve(flag(args, "--store") ?? ".undertaker/store.json");
-  const minSeverity = (flag(args, "--min-severity") ?? "low") as Severity;
-  if (!SEVERITIES.includes(minSeverity)) throw new RangeError(`Unknown severity: ${minSeverity}`);
+  const path = resolve(flag(args, "--store") ?? storePath(resolve(".local-data")));
+  const minSeverity = flag(args, "--min-severity") ?? "info";
+  if (!isSeverity(minSeverity)) throw new RangeError(`Unknown severity: ${minSeverity} (use info, warning, critical)`);
 
-  const store = openStore(storePath);
+  const store = openStore(path);
   const now = () => new Date().toISOString();
+  await store.seedWatches(defaultWatches(now()));
 
-  const ran = await runWatches(DEMO_WATCHES, { scan: createFixtureScanner(minSeverity), store, now });
-  console.log(`Ran ${ran.length} of ${DEMO_WATCHES.length} watches. Store: ${storePath}\n`);
+  const ran = await runDueWatches({ scan: createScanner(), store, now });
+  console.log(`Ran ${ran.length} due watches. Store: ${path}\n`);
 
   const decide = flag(args, "--decide");
   if (decide) {
     const [planId, decision] = decide.split("=");
-    if (!planId || !decision) throw new RangeError("--decide expects <planId>=<approve|dismiss>");
-    const plan = await approvePlan(store, planId, decision as PlanDecision);
+    if (!planId || !isDecision(decision)) throw new RangeError("--decide expects <planId>=<approve|dismiss>");
+    const plan = await approvePlan(store, planId, decision, now());
     console.log(`Plan ${plan.id} -> ${plan.decision}\n`);
   }
 
-  await printDashboard(store, DEMO_WATCHES, now());
+  await printDashboard(store, minSeverity, now());
   if (args.includes("--export")) console.log(`\n${await exportApprovedPlans(store)}`);
 }
 

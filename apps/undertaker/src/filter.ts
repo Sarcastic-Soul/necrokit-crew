@@ -1,8 +1,15 @@
-export type Severity = "low" | "medium" | "high" | "critical";
-export type Finding = { id: string; title: string; severity: Severity };
+import type { Severity } from "../vendor/necrokit.mjs";
 
-const RANK: Record<Severity, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+export type { Severity };
 
-export function filterBySeverity(findings: readonly Finding[], minSeverity: Severity): Finding[] {
+export const SEVERITIES: readonly Severity[] = ["info", "warning", "critical"];
+
+const RANK: Record<Severity, number> = { info: 0, warning: 1, critical: 2 };
+
+export function isSeverity(value: unknown): value is Severity {
+  return typeof value === "string" && (SEVERITIES as readonly string[]).includes(value);
+}
+
+export function filterBySeverity<T extends { severity: Severity }>(findings: readonly T[], minSeverity: Severity): T[] {
   return findings.filter((finding) => RANK[finding.severity] >= RANK[minSeverity]);
 }

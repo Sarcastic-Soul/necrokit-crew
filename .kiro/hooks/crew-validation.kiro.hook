@@ -1,12 +1,21 @@
 {
-  "name": "crew-validation",
-  "description": "Run Crew App checks after application changes.",
-  "trigger": {
-    "type": "fileSaved",
-    "patterns": ["apps/undertaker/**/*.ts", "apps/undertaker/**/*.tsx"]
+  "enabled": true,
+  "name": "Crew App validation",
+  "description": "After an edit to Undertaker source, tests, UI or manifest, run typecheck and tests and fix any failure.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "apps/undertaker/src/**/*.ts",
+      "apps/undertaker/tests/**/*.ts",
+      "apps/undertaker/ui/src/**/*.tsx",
+      "apps/undertaker/ui/src/**/*.ts",
+      "apps/undertaker/app.json",
+      "apps/undertaker/vendor/*.d.mts"
+    ]
   },
-  "action": {
-    "type": "runCommand",
-    "command": "pnpm --filter @necrokit/undertaker typecheck && pnpm --filter @necrokit/undertaker test"
+  "then": {
+    "type": "askAgent",
+    "prompt": "A file in the Undertaker Crew App changed. From the repository root run `pnpm typecheck` and then `pnpm test`. If either fails, find the cause and fix the source code. Do not weaken, skip, or delete tests and do not loosen types to make them pass; if a test is truly wrong, explain why before changing it. If app.json changed, also check it against the steering rules (crons need permissions.cron true, command crons need timeout_secs of at least timeout plus 5). If src or ui changed, run `pnpm build` so backend/*.mjs and ui/dist/index.mjs stay in sync with the source. Report what you ran and the result."
   }
 }
