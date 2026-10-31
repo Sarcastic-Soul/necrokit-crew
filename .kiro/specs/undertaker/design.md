@@ -89,8 +89,7 @@ Undertaker shows that as "unscored", skips it in trends and in the digest's
 
 ## Assumptions (not confirmed by the Kiro Crew docs)
 
-- The `command` cron runs in a POSIX shell, so `${KIROCREW_HOME:-$HOME/.kiro/crew}` expands. The docs say a command cron is a "shell command" and that `KIROCREW_HOME` defaults to `~/.kiro/crew`, but do not say which shell or which environment the job gets.
-- `kirocrew app install` copies the app folder to `<KIROCREW_HOME>/apps/undertaker/`, which is where the cron command looks for `backend/run-due.mjs`.
+- Resolved: the hourly cron was first a shell `command` using `${KIROCREW_HOME:-...}`. Kiro Crew blocks composed expansions in cron commands, so it is now a `script` job, `cron.py:run_due`, which runs `backend/run-due.mjs` next to itself with Node. Checked in a real gateway.
 - The weekly digest agent can read the store file with its core tools.
 
 ## Testing

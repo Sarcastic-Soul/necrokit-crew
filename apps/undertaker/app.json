@@ -6,7 +6,14 @@
   "author": "Anish Kumar",
   "license": "MIT",
   "iconPath": "assets/icon.png",
-  "tags": ["maintenance", "dependencies", "open-source", "npm", "github", "triage"],
+  "tags": [
+    "maintenance",
+    "dependencies",
+    "open-source",
+    "npm",
+    "github",
+    "triage"
+  ],
   "highlights": [
     "Scheduled NecroKit scans of npm packages and GitHub repositories, with score history and a trend line per watch",
     "Every finding links to the evidence behind it; missing data is listed as unavailable, never guessed",
@@ -23,22 +30,26 @@
     "No setup needed for the fixture watches. Add live watches from the Undertaker page; they use the public npm and GitHub APIs without a token, so GitHub rate limits apply.",
     "The hourly run-due-watches job only scans watches whose interval has passed. The weekly agent digest ships paused; resume it on the Schedule page if you want it."
   ],
-  "agents": ["agents/undertaker.json"],
-  "skills": ["skills/necrokit-triage"],
+  "agents": [
+    "agents/undertaker.json"
+  ],
+  "skills": [
+    "skills/necrokit-triage"
+  ],
   "crons": [
     {
       "name": "run-due-watches",
       "every": 3600,
-      "command": "node \"${KIROCREW_HOME:-$HOME/.kiro/crew}/apps/undertaker/backend/run-due.mjs\"",
       "timeout": 120,
       "timeout_secs": 130,
-      "silent": true
+      "silent": true,
+      "script": "cron.py:run_due"
     },
     {
       "name": "weekly-digest",
       "cron_expr": "0 9 * * 1",
       "agent": "undertaker",
-      "message": "Write the Undertaker weekly digest. Read the store file at ${KIROCREW_HOME:-~/.kiro/crew}/apps/undertaker/data/store.json without changing it. List watches whose band got worse since the previous scan, every watch that is critical now, watches that are unscored because no evidence was collected, and the number of plans still waiting for a decision. Quote scores and findings as stored. Do not approve or dismiss plans and do not change any code.",
+      "message": "Write the Undertaker weekly digest. Read the store file at ~/.kiro/crew/apps/undertaker/data/store.json (or apps/undertaker/data/store.json under KIROCREW_HOME if that is set) without changing it. List watches whose band got worse since the previous scan, every watch that is critical now, watches that are unscored because no evidence was collected, and the number of plans still waiting for a decision. Quote scores and findings as stored. Do not approve or dismiss plans and do not change any code.",
       "enabled": false
     }
   ],
@@ -60,13 +71,19 @@
     "routes": "/api/apps/undertaker"
   },
   "permissions": {
-    "api": ["/apps/undertaker/api", "/apps/undertaker/api/*"],
+    "api": [
+      "/apps/undertaker/api",
+      "/apps/undertaker/api/*"
+    ],
     "events": [],
     "storage": true,
     "cron": true,
     "network": true
   },
   "platform": {
-    "os": ["macos", "linux"]
+    "os": [
+      "macos",
+      "linux"
+    ]
   }
 }

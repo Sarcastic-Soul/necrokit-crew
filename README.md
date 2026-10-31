@@ -175,22 +175,19 @@ When evidence is missing it says so instead of guessing.
 **Try it.** Install as above. The default watches use recorded fixtures, so it
 works with no network, no key and no model.
 
-## Assumptions and what is not verified
+## Checked in a real gateway
 
-These were built from the Kiro Crew docs but not yet run in a real gateway:
+Installed into Kiro Crew 0.11.0 on Linux on 2026-10-31:
 
-- The hourly cron runs
-  `node "${KIROCREW_HOME:-$HOME/.kiro/crew}/apps/undertaker/backend/run-due.mjs"`.
-  This assumes the `command` runs in a POSIX shell and that the installed copy
-  lives at `<KIROCREW_HOME>/apps/undertaker`. The docs say `KIROCREW_HOME`
-  defaults to `~/.kiro/crew` but do not say which shell a command cron uses.
-- The weekly digest agent is told to read `data/store.json` directly. It is
-  paused by default because agent file access was not tested.
-- `@kirocrew/app-sdk` is provided by the dashboard at runtime and is not on
-  npm, so `ui/package.json` does not list it; `ui/src/kirocrew-sdk.d.ts` types
-  only the parts this app uses, copied from the Kiro Crew source.
-- The sidebar uses `ui.pages[].iconUrl` (`ui/icon.svg`), since the docs say
-  installed apps do not get a named `icon`.
+- `kirocrew app install` accepts the manifest; `kirocrew app enable` registers 1 agent and 1 skill and starts the backend, and `/health` answers.
+- The hourly `run-due-watches` cron is a `script` job (`cron.py:run_due`). The first version used a shell `command` with `${KIROCREW_HOME:-...}`, which Kiro Crew rejects. Triggering the new job from the gateway (`kirocrew cron trigger`) scanned all 5 fixture watches.
+- Kiro Crew runs third-party app code only when it is trusted: add `undertaker` to `agent.apps_trusted` (`kirocrew config set agent.apps_trusted '["undertaker"]'`). On Ubuntu 23.10 or newer, `kirocrew service install` must also install its AppArmor profile, or the sandbox is unavailable and the app cannot start.
+
+Not yet checked:
+
+- The Undertaker page inside the signed-in dashboard.
+- The weekly digest agent reading `data/store.json`. It ships paused.
+- `@kirocrew/app-sdk` is provided by the dashboard at runtime and is not on npm, so `ui/package.json` does not list it; `ui/src/kirocrew-sdk.d.ts` types only the parts this app uses, copied from the Kiro Crew source.
 
 ## License
 

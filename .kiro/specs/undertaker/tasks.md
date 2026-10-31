@@ -14,5 +14,5 @@
 - [x] 12. `app.json`, agent, `necrokit-triage` skill, hourly command cron and paused weekly digest (R7.1, R7.5)
 - [x] 13. Text dashboard CLI (R8.3)
 - [x] 14. Tests for every module above (all)
-- [ ] 15. Install into a real Kiro Crew gateway and confirm the page, the backend proxy and both crons work (R7.1 to R7.5)
+- [ ] 15. Install into a real Kiro Crew gateway and confirm the page, the backend proxy and both crons work (R7.1 to R7.5). Done so far: install, enable, backend health, hourly cron. Left: the page in a signed-in dashboard and the weekly digest.
 - [ ] 16. Screenshots from the installed app for the Devpost write-up

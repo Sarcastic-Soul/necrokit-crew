@@ -26,7 +26,8 @@ kirocrew app enable undertaker
 | `assets/icon.png` | Store icon, 512 px, opaque (`icon.svg` is the source) |
 | `ui/icon.svg` | Sidebar icon (`ui.pages[].iconUrl`) |
 | `backend/server.mjs` | Backend, built from `src/server.ts` |
-| `backend/run-due.mjs` | Hourly cron entry, built from `src/run-due.ts` |
+| `backend/run-due.mjs` | Hourly scan, built from `src/run-due.ts` |
+| `cron.py` | Cron entry: runs `backend/run-due.mjs` with Node |
 | `ui/dist/index.mjs` | Page bundle, built from `ui/src/App.tsx` |
 | `vendor/necrokit.mjs` | NecroKit build; see `vendor/PROVENANCE.md` |
 
@@ -34,7 +35,7 @@ kirocrew app enable undertaker
 
 | Name | Kind | Schedule | Does |
 |------|------|----------|------|
-| `run-due-watches` | `command` | every hour | Scans watches whose interval has passed. No model call. Prints `{ran, failed, critical, dataDir}`. |
+| `run-due-watches` | `script` (`cron.py:run_due`) | every hour | Scans watches whose interval has passed. No model call. Prints `{ran, failed, critical, dataDir}`. |
 | `weekly-digest` | `message` to the `undertaker` agent | Mondays 09:00 UTC | Summarizes what got worse, what is critical, what is unscored, and pending plans. Ships paused (`enabled: false`). |
 
 ## Backend API
