@@ -247,7 +247,7 @@ function Ce() {
   const { summary: k } = l;
   return /* @__PURE__ */ a(J, { children: [
     _,
-    /* @__PURE__ */ a("div", { className: "px-6 pb-8 overflow-y-auto flex-1 min-h-0 flex flex-col gap-4", children: [
+    /* @__PURE__ */ e("div", { className: "px-6 pb-8 overflow-y-auto flex-1 min-h-0", children: /* @__PURE__ */ a("div", { className: "flex flex-col gap-4", children: [
       r && /* @__PURE__ */ a("p", { role: "alert", className: "text-sm text-danger-text", children: [
         "Last refresh failed: ",
         r
@@ -329,7 +329,7 @@ function Ce() {
         /* @__PURE__ */ e(M, { children: "Add a watch" }),
         /* @__PURE__ */ e(ve, { fixtures: x, onAdded: () => void c() })
       ] })
-    ] })
+    ] }) })
   ] });
 }
 export {

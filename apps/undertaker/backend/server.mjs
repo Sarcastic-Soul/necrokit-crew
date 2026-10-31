@@ -75,6 +75,18 @@ function signV2(secret2, ts, nonce, method, target, body) {
   const bodyHash = createHash("sha256").update(body).digest("hex");
   return createHmac("sha256", secret2).update(`v2:${ts}:${nonce}:${method}:${target}:${bodyHash}`).digest("hex");
 }
+function signV1(secret2, ts, method, target, body) {
+  const bodyHash = createHash("sha256").update(body).digest("hex");
+  return createHmac("sha256", secret2).update(`${ts}:${method}:${target}:${bodyHash}`).digest("hex");
+}
+function verifyProxyV1(signature, req, secret2, nowSeconds) {
+  const [tsText, mac] = (signature ?? "").split(":");
+  const ts = Number(tsText);
+  if (!mac || !Number.isInteger(ts) || Math.abs(nowSeconds - ts) > WINDOW_SECONDS) return false;
+  const expected = Buffer.from(signV1(secret2, ts, req.method, req.target, req.body), "hex");
+  const given = Buffer.from(mac, "hex");
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
 function verifyProxyV2(req, secret2, nowSeconds, cache) {
   const [tsText, mac] = (req.signature ?? "").split(":");
   const ts = Number(tsText);
@@ -5290,7 +5302,9 @@ function createApi(deps) {
         signature: header(req, "x-kirocrew-proxy-v2"),
         nonce: header(req, "x-kirocrew-proxy-nonce")
       };
-      if (!verifyProxyV2(signed, deps.secret, Math.floor(Date.now() / 1e3), deps.nonces)) {
+      const now2 = Math.floor(Date.now() / 1e3);
+      const ok = signed.signature ? verifyProxyV2(signed, deps.secret, now2, deps.nonces) : verifyProxyV1(header(req, "x-kirocrew-proxy"), signed, deps.secret, now2);
+      if (!ok) {
         return json(401, { error: "Request was not signed by the Kiro Crew gateway" });
       }
     }

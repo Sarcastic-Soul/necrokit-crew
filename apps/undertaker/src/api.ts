@@ -13,7 +13,7 @@ import type {
 import { APP_NAME } from "./config.ts";
 import { approvePlan, exportApprovedPlans, isDecision } from "./plan-approval.ts";
 import type { NonceCache } from "./proxy-auth.ts";
-import { verifyProxyV2 } from "./proxy-auth.ts";
+import { verifyProxyV1, verifyProxyV2 } from "./proxy-auth.ts";
 import { isDue, nextRunAt } from "./schedule.ts";
 import { fixtureNames, validateTarget } from "./scanner.ts";
 import type { ScanFn } from "./scanner.ts";
@@ -245,7 +245,12 @@ export function createApi(deps: ApiDeps): (req: ApiRequest) => Promise<ApiRespon
         signature: header(req, "x-kirocrew-proxy-v2"),
         nonce: header(req, "x-kirocrew-proxy-nonce"),
       };
-      if (!verifyProxyV2(signed, deps.secret, Math.floor(Date.now() / 1000), deps.nonces)) {
+      const now = Math.floor(Date.now() / 1000);
+      // Prefer the replay-proof v2 header; gateways that only send v1 are checked with v1.
+      const ok = signed.signature
+        ? verifyProxyV2(signed, deps.secret, now, deps.nonces)
+        : verifyProxyV1(header(req, "x-kirocrew-proxy"), signed, deps.secret, now);
+      if (!ok) {
         return json(401, { error: "Request was not signed by the Kiro Crew gateway" });
       }
     }

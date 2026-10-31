@@ -380,7 +380,9 @@ export default function Undertaker() {
   return (
     <>
       {header}
-      <div className="px-6 pb-8 overflow-y-auto flex-1 min-h-0 flex flex-col gap-4">
+      <div className="px-6 pb-8 overflow-y-auto flex-1 min-h-0">
+        {/* Inner column has no height limit, so cards keep their full height and the outer div scrolls. */}
+        <div className="flex flex-col gap-4">
         {error && <p role="alert" className="text-sm text-danger-text">Last refresh failed: {error}</p>}
         <div className="grid gap-3.5 grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
           <StatCard label="Critical" value={summary.critical} accent={summary.critical > 0} />
@@ -481,6 +483,7 @@ export default function Undertaker() {
           <CardTitle>Add a watch</CardTitle>
           <AddWatch fixtures={fixtures} onAdded={() => void load()} />
         </Card>
+        </div>
       </div>
     </>
   )

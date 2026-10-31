@@ -4,7 +4,7 @@ import { createApi, routePath } from "../src/api.ts";
 import type { ApiRequest, ApiResponse } from "../src/api.ts";
 import type { Plan, WatchesResponse } from "../src/api-types.ts";
 import { defaultWatches } from "../src/config.ts";
-import { createNonceCache, signV2 } from "../src/proxy-auth.ts";
+import { createNonceCache, signV1, signV2 } from "../src/proxy-auth.ts";
 import { createScanner } from "../src/scanner.ts";
 import { openStore } from "../src/store.ts";
 import type { Store } from "../src/store.ts";
@@ -150,5 +150,16 @@ describe("gateway signature", () => {
     expect((await handle(signed("GET", "/api/watches", nonce))).status).toBe(401);
     const stale = signed("GET", "/api/watches", "f".repeat(32), Math.floor(Date.now() / 1000) - 120);
     expect((await handle(stale)).status).toBe(401);
+  });
+
+  it("accepts the v1 header that Kiro Crew 0.11.0 sends, and refuses a bad or stale one", async () => {
+    const v1 = (ts: number, mac?: string): ApiRequest => ({
+      ...req("GET", "/api/watches"),
+      headers: { "x-kirocrew-proxy": `${ts}:${mac ?? signV1(secret, ts, "GET", "/api/watches", new Uint8Array())}` },
+    });
+    const now = Math.floor(Date.now() / 1000);
+    expect((await handle(v1(now))).status).toBe(200);
+    expect((await handle(v1(now, "0".repeat(64)))).status).toBe(401);
+    expect((await handle(v1(now - 120))).status).toBe(401);
   });
 });

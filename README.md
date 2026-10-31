@@ -183,9 +183,11 @@ Installed into Kiro Crew 0.11.0 on Linux on 2026-10-31:
 - The hourly `run-due-watches` cron is a `script` job (`cron.py:run_due`). The first version used a shell `command` with `${KIROCREW_HOME:-...}`, which Kiro Crew rejects. Triggering the new job from the gateway (`kirocrew cron trigger`) scanned all 5 fixture watches.
 - Kiro Crew runs third-party app code only when it is trusted: add `undertaker` to `agent.apps_trusted` (`kirocrew config set agent.apps_trusted '["undertaker"]'`). On Ubuntu 23.10 or newer, `kirocrew service install` must also install its AppArmor profile, or the sandbox is unavailable and the app cannot start.
 
+- The Undertaker page loads in the dashboard: 5 watches, findings, revival plans, approve, export, and adding a live `left-pad` watch (scanned live, 6 critical).
+- Kiro Crew 0.11.0 signs proxied requests with the v1 `X-KiroCrew-Proxy` header, not the newer v2 header the docs describe. The backend accepts v2 when present and falls back to v1.
+
 Not yet checked:
 
-- The Undertaker page inside the signed-in dashboard.
 - The weekly digest agent reading `data/store.json`. It ships paused.
 - `@kirocrew/app-sdk` is provided by the dashboard at runtime and is not on npm, so `ui/package.json` does not list it; `ui/src/kirocrew-sdk.d.ts` types only the parts this app uses, copied from the Kiro Crew source.
 
