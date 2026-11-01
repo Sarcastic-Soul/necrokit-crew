@@ -4796,6 +4796,7 @@ var DAY_MS3 = 864e5;
 var STALE_ISSUE_THRESHOLD = 10;
 var OLD_PULL_REQUEST_DAYS = 180;
 var STALE_RELEASE_DAYS = 365;
+var STALE_PUSH_DAYS = 365;
 var repoRules = [
   {
     id: "archived",
@@ -4862,6 +4863,24 @@ var repoRules = [
       return { evidenceIds: [e.id], explanation: "No license is declared, so reuse rights are unclear." };
     },
     suggestedAction: "Add a LICENSE file that matches the intended reuse terms."
+  },
+  {
+    id: "no-recent-push",
+    title: "No push in over a year",
+    severity: "warning",
+    weight: 50,
+    evaluate(evidence) {
+      const pushed = findEvidence(evidence, "pushedAt");
+      const reference = findEvidence(evidence, "generatedAt");
+      if (typeof pushed?.value !== "string" || typeof reference?.value !== "string") return null;
+      const ageDays = Math.floor((Date.parse(reference.value) - Date.parse(pushed.value)) / DAY_MS3);
+      if (!Number.isFinite(ageDays) || ageDays <= STALE_PUSH_DAYS) return null;
+      return {
+        evidenceIds: [pushed.id, reference.id],
+        explanation: `The last push to any branch was ${ageDays} days ago (threshold ${STALE_PUSH_DAYS}).`
+      };
+    },
+    suggestedAction: "Confirm someone still maintains the repository, or plan a move to a maintained fork."
   },
   {
     id: "no-recent-release",
