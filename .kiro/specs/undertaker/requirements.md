@@ -95,9 +95,9 @@ so that it lives next to my agents and schedules.
 4. THE SYSTEM SHALL store data under `<KIROCREW_HOME>/apps/undertaker/data` when run by the gateway.
 5. THE SYSTEM SHALL ship a weekly digest cron for the agent, paused by default.
 
-## Requirement 8: Offline judging
+## Requirement 8: Offline use
 
-**User story:** As a judge, I want to try the app with no keys and no network,
+**User story:** As a new user, I want to try the app with no keys and no network,
 so that the demo always works.
 
 ### Acceptance criteria

@@ -6,9 +6,6 @@ scans on a schedule, keeps the score history, and turns new findings into
 revival plans that wait for a person to approve or dismiss them. It never
 changes code.
 
-This repo is the Kiroween 2026 "Best Kiro Crew App" entry. It is separate from
-the main NecroKit repo because the rules ask for a separate repository.
-
 ## Features
 
 - **Watches.** A package or a repository, in fixture mode (recorded data, no
@@ -71,7 +68,6 @@ apps/undertaker/          the Crew App (this folder is what gets installed)
   tests/                  Vitest tests
   vendor/necrokit.mjs     NecroKit build, see vendor/PROVENANCE.md
 .kiro/                    Kiro steering, hook and the spec this was built from
-docs/CREW_APP_PLAN.md     original plan
 ```
 
 ## Install into Kiro Crew
@@ -134,7 +130,7 @@ the bundle that `pnpm build` produces in the NecroKit repo, and
 `src/scanner.ts` is the only file that calls it. Undertaker adds what a
 one-off scan cannot: a schedule, history, a decision step, and an export.
 
-## Crew App write-up
+## About Undertaker
 
 **What it is.** Undertaker is a maintenance watch for the open-source code you
 depend on. You list packages and repositories; Kiro Crew's scheduler scans them

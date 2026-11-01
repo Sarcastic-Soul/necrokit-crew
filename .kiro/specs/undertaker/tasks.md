@@ -15,4 +15,4 @@
 - [x] 13. Text dashboard CLI (R8.3)
 - [x] 14. Tests for every module above (all)
 - [ ] 15. Install into a real Kiro Crew gateway and confirm the page, the backend proxy and both crons work (R7.1 to R7.5). Done: install, enable, backend health, hourly cron, the page, live watch, approve and export. Left: the weekly digest.
-- [ ] 16. Screenshots from the installed app for the Devpost write-up
+- [ ] 16. Screenshots from the installed app for the README
